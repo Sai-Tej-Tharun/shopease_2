@@ -1,0 +1,62 @@
+# Order Service + its own MySQL database (shopease_order_db).
+# All credentials and the JWT secret come from the .env file (copy .env.example to .env).
+# The Authentication, User and Product Catalog services run in their own Compose projects and publish
+# ports 8001 / 8002 / 8003 on the PC, so the Order Service reaches them through host.docker.internal.
+
+services:
+  order-db:
+    image: mysql:8.0
+    container_name: shopease-order-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE in .env}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+    ports:
+      - "${MYSQL_HOST_PORT:-3310}:3306"       # optional: lets MySQL Workbench reach the container
+    volumes:
+      - order_db_data:/var/lib/mysql           # named volume: data survives container restarts
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  order-service:
+    build: .
+    container_name: shopease-order-service
+    restart: unless-stopped
+    depends_on:
+      order-db:
+        condition: service_healthy             # start only after MySQL answers the health check
+    environment:
+      MYSQL_HOST: order-db                     # the Compose service name, NOT localhost
+      MYSQL_PORT: "3306"                       # port inside the Docker network
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env (same value as the Authentication Service)}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ADMIN_ROLE: ${ADMIN_ROLE:-admin}
+      SERVICE_ACCOUNT_ID: ${SERVICE_ACCOUNT_ID:-999999}
+      AUTH_VERIFY_REMOTE: ${AUTH_VERIFY_REMOTE:-false}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL_IN_DOCKER:-http://host.docker.internal:8001}
+      USER_SERVICE_URL: ${USER_SERVICE_URL_IN_DOCKER:-http://host.docker.internal:8002}
+      PRODUCT_SERVICE_URL: ${PRODUCT_SERVICE_URL_IN_DOCKER:-http://host.docker.internal:8003}
+      USER_SERVICE_TIMEOUT: ${USER_SERVICE_TIMEOUT:-5}
+      PRODUCT_SERVICE_TIMEOUT: ${PRODUCT_SERVICE_TIMEOUT:-5}
+      SERVICE_RETRY_ATTEMPTS: ${SERVICE_RETRY_ATTEMPTS:-3}
+      TAX_RATE: ${TAX_RATE:-0.18}
+      SHIPPING_FLAT_RATE: ${SHIPPING_FLAT_RATE:-50.00}
+      FREE_SHIPPING_THRESHOLD: ${FREE_SHIPPING_THRESHOLD:-1000.00}
+      MAX_ITEMS_PER_ORDER: ${MAX_ITEMS_PER_ORDER:-20}
+      MAX_QUANTITY_PER_ITEM: ${MAX_QUANTITY_PER_ITEM:-100}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"    # makes host.docker.internal work on Linux too (Docker Desktop has it)
+    ports:
+      - "8004:8004"
+
+volumes:
+  order_db_data:

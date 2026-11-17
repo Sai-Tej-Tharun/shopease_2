@@ -1,0 +1,2113 @@
+{
+  "info": {
+    "name": "ShopEase Order Service",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Needs the Authentication-signed tokens' secret, and these services running: Order 8004, User 8002, Product Catalog 8003. Set the variable jwt_secret to JWT_SECRET_KEY from .env. The collection creates its own customers' profiles and addresses and its own catalog data. Run folders top to bottom up to 'Administrator'. To test unavailability: stop the Product Catalog Service, run only the 'Catalog unavailable' folder, start it again and run 'Recovery'. Expected amounts assume the default pricing rules (18% tax, 50.00 shipping below 1000.00)."
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Tokens are signed here with the shared JWT secret, exactly like the Authentication Service signs them (HS256: sub, role, iat, exp).",
+          "const secret = pm.variables.get(\"jwt_secret\");",
+          "if (!secret) { throw new Error(\"Set the variable jwt_secret to JWT_SECRET_KEY from .env\"); }",
+          "const b64u = (wa) => CryptoJS.enc.Base64.stringify(wa).replace(/=+$/, \"\").replace(/\\+/g, \"-\").replace(/\\//g, \"_\");",
+          "const sign = (claims) => {",
+          "  const head = b64u(CryptoJS.enc.Utf8.parse(JSON.stringify({ alg: \"HS256\", typ: \"JWT\" })));",
+          "  const body = b64u(CryptoJS.enc.Utf8.parse(JSON.stringify(claims)));",
+          "  return head + \".\" + body + \".\" + b64u(CryptoJS.HmacSHA256(head + \".\" + body, secret));",
+          "};",
+          "if (!pm.collectionVariables.get(\"run_id\")) {",
+          "  const run = String(Date.now());",
+          "  pm.collectionVariables.set(\"run_id\", run);",
+          "  pm.collectionVariables.set(\"user_a\", String(100000 + Number(run.slice(-6))));   // fresh customers for every run",
+          "  pm.collectionVariables.set(\"user_b\", String(200000 + Number(run.slice(-6))));",
+          "}",
+          "const now = Math.floor(Date.now() / 1000);",
+          "pm.collectionVariables.set(\"admin_token\", sign({ sub: \"1\", role: \"admin\", iat: now, exp: now + 1800 }));",
+          "pm.collectionVariables.set(\"customer_a_token\", sign({ sub: pm.collectionVariables.get(\"user_a\"), role: \"customer\", iat: now, exp: now + 1800 }));",
+          "pm.collectionVariables.set(\"customer_b_token\", sign({ sub: pm.collectionVariables.get(\"user_b\"), role: \"customer\", iat: now, exp: now + 1800 }));",
+          "const day = (offset) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);",
+          "pm.collectionVariables.set(\"yesterday\", day(-1)); pm.collectionVariables.set(\"tomorrow\", day(1));"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "order_url",
+      "value": "http://localhost:8004"
+    },
+    {
+      "key": "user_url",
+      "value": "http://localhost:8002"
+    },
+    {
+      "key": "catalog_url",
+      "value": "http://localhost:8003"
+    },
+    {
+      "key": "jwt_secret",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Setup (profiles, addresses, catalog data)",
+      "item": [
+        {
+          "name": "S01 Customer A profile (User Service)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Alice Kumar\",\n  \"phone_number\": \"9876543210\"\n}"
+            }
+          }
+        },
+        {
+          "name": "S02 Customer A address",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set(\"addr_a\", String(pm.response.json().id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address_type\": \"Home\",\n  \"full_name\": \"Alice Kumar\",\n  \"phone_number\": \"9876543210\",\n  \"address_line_1\": \"12 Rose Street\",\n  \"city\": \"Hyderabad\",\n  \"state\": \"Telangana\",\n  \"country\": \"India\",\n  \"postal_code\": \"500001\"\n}"
+            }
+          }
+        },
+        {
+          "name": "S03 Customer B profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_b_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Bob Rao\",\n  \"phone_number\": \"9123456780\"\n}"
+            }
+          }
+        },
+        {
+          "name": "S04 Customer B address",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set(\"addr_b\", String(pm.response.json().id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_b_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address_type\": \"Home\",\n  \"full_name\": \"Bob Rao\",\n  \"phone_number\": \"9123456780\",\n  \"address_line_1\": \"9 Lake View\",\n  \"city\": \"Warangal\",\n  \"state\": \"Telangana\",\n  \"country\": \"India\",\n  \"postal_code\": \"506002\"\n}"
+            }
+          }
+        },
+        {
+          "name": "S05 Category (Product Catalog)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set(\"cat\", String(pm.response.json().id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/categories/",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"PM Orders {{run_id}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "S06 Product 1: Smart Phone X, 20000 (18000 discounted), stock 20",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set(\"p1\", String(pm.response.json().id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/products/",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "products"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category_id\": {{cat}},\n  \"name\": \"Smart Phone X\",\n  \"sku\": \"PM-{{run_id}}-1\",\n  \"price\": \"20000.00\",\n  \"discount_price\": \"18000.00\",\n  \"stock_quantity\": 20,\n  \"is_active\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "S07 Product 2: USB Cable, 299 (199 discounted), stock 100",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set(\"p2\", String(pm.response.json().id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/products/",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "products"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category_id\": {{cat}},\n  \"name\": \"USB Cable\",\n  \"sku\": \"PM-{{run_id}}-2\",\n  \"price\": \"299.00\",\n  \"discount_price\": \"199.00\",\n  \"stock_quantity\": 100,\n  \"is_active\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "S08 Product 3: Old Phone (inactive)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set(\"p3\", String(pm.response.json().id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/products/",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "products"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category_id\": {{cat}},\n  \"name\": \"Old Phone\",\n  \"sku\": \"PM-{{run_id}}-3\",\n  \"price\": \"3000.00\",\n  \"discount_price\": null,\n  \"stock_quantity\": 5,\n  \"is_active\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "S09 Product 4: Laptop Pro, stock 3",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set(\"p4\", String(pm.response.json().id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/products/",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "products"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category_id\": {{cat}},\n  \"name\": \"Laptop Pro\",\n  \"sku\": \"PM-{{run_id}}-4\",\n  \"price\": \"60000.00\",\n  \"discount_price\": null,\n  \"stock_quantity\": 3,\n  \"is_active\": true\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create order",
+      "item": [
+        {
+          "name": "01 Create order with valid products",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.test(\"Backend-calculated amounts\", function () { const o = pm.response.json(); pm.expect(o.subtotal).to.eql(\"40299.00\"); pm.expect(o.discount_amount).to.eql(\"4100.00\"); pm.expect(o.tax_amount).to.eql(\"6515.82\"); pm.expect(o.shipping_charge).to.eql(\"0.00\"); pm.expect(o.total_amount).to.eql(\"42714.82\"); });",
+                  "pm.test(\"PENDING and PENDING, owner is the token user\", function () { const o = pm.response.json(); pm.expect(o.order_status).to.eql(\"PENDING\"); pm.expect(o.payment_status).to.eql(\"PENDING\"); pm.expect(String(o.user_id)).to.eql(pm.collectionVariables.get(\"user_a\")); });",
+                  "pm.test(\"Item snapshots\", function () { const i = pm.response.json().items; pm.expect(i.length).to.eql(2); pm.expect(i[0].product_name).to.eql(\"Smart Phone X\"); pm.expect(i[0].unit_price).to.eql(\"20000.00\"); pm.expect(i[0].total_price).to.eql(\"36000.00\"); pm.expect(i[0].stock_status).to.eql(\"RESERVED\"); });",
+                  "pm.test(\"Shipping address snapshot\", function () { pm.expect(pm.response.json().shipping_address.address_line_1).to.eql(\"12 Rose Street\"); });",
+                  "pm.collectionVariables.set(\"order1\", String(pm.response.json().id));",
+                  "pm.collectionVariables.set(\"order1_number\", String(pm.response.json().order_number));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": {{p1}},\n      \"quantity\": 2\n    },\n    {\n      \"product_id\": {{p2}},\n      \"quantity\": 1\n    }\n  ],\n  \"shipping_address_id\": {{addr_a}},\n  \"notes\": \"Please deliver during evening hours\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Inventory check: product p1 stock is 18",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Stock is 18\", function () { pm.expect(pm.response.json().stock_quantity).to.eql(18); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/inventory/{{p1}}",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "{{p1}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Inventory check: product p2 stock is 99",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Stock is 99\", function () { pm.expect(pm.response.json().stock_quantity).to.eql(99); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/inventory/{{p2}}",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "{{p2}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "02 Invalid product id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", function () { pm.response.to.have.status(422); });",
+                  "pm.test(\"Message: Product 999999 does not exist\", function () { pm.expect(pm.response.json().message).to.eql(\"Product 999999 does not exist\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": 999999,\n      \"quantity\": 1\n    }\n  ],\n  \"shipping_address_id\": {{addr_a}}\n}"
+            }
+          }
+        },
+        {
+          "name": "03 Inactive product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", function () { pm.response.to.have.status(422); });",
+                  "pm.test(\"Not available\", function () { pm.expect(pm.response.json().message).to.include(\"is not available for ordering\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": {{p3}},\n      \"quantity\": 1\n    }\n  ],\n  \"shipping_address_id\": {{addr_a}}\n}"
+            }
+          }
+        },
+        {
+          "name": "04 Insufficient stock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Message: Insufficient stock for Laptop Pro: 3 available, 4 requested\", function () { pm.expect(pm.response.json().message).to.eql(\"Insufficient stock for Laptop Pro: 3 available, 4 requested\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": {{p4}},\n      \"quantity\": 4\n    }\n  ],\n  \"shipping_address_id\": {{addr_a}}\n}"
+            }
+          }
+        },
+        {
+          "name": "05 Invalid shipping address (belongs to another user)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", function () { pm.response.to.have.status(422); });",
+                  "pm.test(\"Address refused\", function () { pm.expect(pm.response.json().message).to.include(\"not found among your saved addresses\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": {{p2}},\n      \"quantity\": 1\n    }\n  ],\n  \"shipping_address_id\": {{addr_b}}\n}"
+            }
+          }
+        },
+        {
+          "name": "06 No token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Message: Not authenticated: Bearer token is missing\", function () { pm.expect(pm.response.json().message).to.eql(\"Not authenticated: Bearer token is missing\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": {{p2}},\n      \"quantity\": 1\n    }\n  ],\n  \"shipping_address_id\": {{addr_a}}\n}"
+            }
+          }
+        },
+        {
+          "name": "07 Invalid token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Message: Invalid token\", function () { pm.expect(pm.response.json().message).to.eql(\"Invalid token\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer abc.def.ghi"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": {{p2}},\n      \"quantity\": 1\n    }\n  ],\n  \"shipping_address_id\": {{addr_a}}\n}"
+            }
+          }
+        },
+        {
+          "name": "08 Client-supplied user id and prices are rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", function () { pm.response.to.have.status(422); });",
+                  "pm.test(\"Fields not allowed\", function () { pm.expect(pm.response.json().details.map(d => d.message)).to.eql([\"Field is not allowed\", \"Field is not allowed\"]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": {{p2}},\n      \"quantity\": 1\n    }\n  ],\n  \"shipping_address_id\": {{addr_a}},\n  \"user_id\": 1,\n  \"total_amount\": \"1.00\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Inventory check: product p4 stock is 3",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Stock is 3\", function () { pm.expect(pm.response.json().stock_quantity).to.eql(3); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/inventory/{{p4}}",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "{{p4}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Retrieve orders",
+      "item": [
+        {
+          "name": "09 List my orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Contains order 1\", function () { const j = pm.response.json(); pm.expect(j.total).to.eql(1); pm.expect(String(j.items[0].id)).to.eql(pm.collectionVariables.get(\"order1\")); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "10 Another user's order is refused",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Message: You do not have access to this order\", function () { pm.expect(pm.response.json().message).to.eql(\"You do not have access to this order\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_b_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/{{order1}}",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order1}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "11 Order details",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Right order\", function () { pm.expect(pm.response.json().order_number).to.eql(pm.collectionVariables.get(\"order1_number\")); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/{{order1}}",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order1}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "12 Order by order number",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Right order\", function () { pm.expect(String(pm.response.json().id)).to.eql(pm.collectionVariables.get(\"order1\")); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/number/{{order1_number}}",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "number",
+                "{{order1_number}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "13 Order items",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Two items\", function () { const j = pm.response.json(); pm.expect(j.total_items).to.eql(2); pm.expect(j.items[1].sku).to.include(\"-2\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/{{order1}}/items",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order1}}",
+                "items"
+              ]
+            }
+          }
+        },
+        {
+          "name": "14 Pagination, status and date filters",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Filtered page\", function () { const j = pm.response.json(); pm.expect(j.total).to.eql(1); pm.expect(j.page).to.eql(1); pm.expect(j.page_size).to.eql(1); pm.expect(j.items[0].order_status).to.eql(\"PENDING\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/?status=PENDING&date_from={{yesterday}}&date_to={{tomorrow}}&page=1&page_size=1",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDING"
+                },
+                {
+                  "key": "date_from",
+                  "value": "{{yesterday}}"
+                },
+                {
+                  "key": "date_to",
+                  "value": "{{tomorrow}}"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "15 Filter with no match",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Empty\", function () { pm.expect(pm.response.json().total).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/?status=DELIVERED",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "DELIVERED"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "16 Invalid filter values",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/?status=SHIPPING&page=0",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "SHIPPING"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Order status",
+      "item": [
+        {
+          "name": "17 Administrator confirms the order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"CONFIRMED\", function () { pm.expect(pm.response.json().order_status).to.eql(\"CONFIRMED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/{{order1}}/status",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order1}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CONFIRMED\"\n}"
+            }
+          }
+        },
+        {
+          "name": "18 Customer cannot change the status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Message: Administrator access is required for this operation\", function () { pm.expect(pm.response.json().message).to.eql(\"Administrator access is required for this operation\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/{{order1}}/status",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order1}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"PROCESSING\"\n}"
+            }
+          }
+        },
+        {
+          "name": "19 Invalid transition CONFIRMED to DELIVERED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Explains the rule\", function () { pm.expect(pm.response.json().message).to.include(\"Invalid status change: CONFIRMED -> DELIVERED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/{{order1}}/status",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order1}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DELIVERED\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cancellation and inventory restoration",
+      "item": [
+        {
+          "name": "20 Create a second order (3 USB cables)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set(\"order2\", String(pm.response.json().id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": {{p2}},\n      \"quantity\": 3\n    }\n  ],\n  \"shipping_address_id\": {{addr_a}}\n}"
+            }
+          }
+        },
+        {
+          "name": "Inventory check: product p2 stock is 96",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Stock is 96\", function () { pm.expect(pm.response.json().stock_quantity).to.eql(96); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/inventory/{{p2}}",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "{{p2}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "21 Cancel the eligible order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Cancelled, stock restored\", function () { const j = pm.response.json(); pm.expect(j.order.order_status).to.eql(\"CANCELLED\"); pm.expect(j.stock_restored_now).to.eql(1); pm.expect(j.order.items[0].stock_status).to.eql(\"RELEASED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/{{order2}}/cancel",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order2}}",
+                "cancel"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Inventory check: product p2 stock is 99",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Stock is 99\", function () { pm.expect(pm.response.json().stock_quantity).to.eql(99); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/inventory/{{p2}}",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "{{p2}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "22 Repeat the cancellation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Nothing restored again\", function () { pm.expect(pm.response.json().stock_restored_now).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/{{order2}}/cancel",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order2}}",
+                "cancel"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Inventory check: product p2 stock is 99",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Stock is 99\", function () { pm.expect(pm.response.json().stock_quantity).to.eql(99); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/inventory/{{p2}}",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "{{p2}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "23 Administrator moves order 1 to PROCESSING",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/{{order1}}/status",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order1}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"PROCESSING\"\n}"
+            }
+          }
+        },
+        {
+          "name": "24 Administrator moves order 1 to SHIPPED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/{{order1}}/status",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order1}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"SHIPPED\"\n}"
+            }
+          }
+        },
+        {
+          "name": "25 Shipped order cannot be cancelled",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Message: Order cannot be cancelled: it is already SHIPPED\", function () { pm.expect(pm.response.json().message).to.eql(\"Order cannot be cancelled: it is already SHIPPED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/{{order1}}/cancel",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order1}}",
+                "cancel"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Inventory check: product p1 stock is 18",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Stock is 18\", function () { pm.expect(pm.response.json().stock_quantity).to.eql(18); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/inventory/{{p1}}",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "{{p1}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Administrator",
+      "item": [
+        {
+          "name": "26 Administrator lists all orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Both orders of customer A\", function () { pm.expect(pm.response.json().total).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/?user_id={{user_a}}",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_a}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "27 Customer cannot list another user's orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/?user_id={{user_b}}",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_b}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "28 Pending stock releases (administrator)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"None pending\", function () { pm.expect(pm.response.json().pending).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/compensations",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "compensations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "29 Customer cannot see pending stock releases",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/compensations",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "compensations"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalog unavailable (stop the Product Catalog Service, run only this folder)",
+      "item": [
+        {
+          "name": "30 Place an order while the catalog is down",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code !== 503) { pm.test.skip(\"Product Catalog Service is running: stop it to run this folder\"); } else {",
+                  "pm.test(\"503 Product Catalog Service unavailable\", function () { pm.expect(pm.response.code).to.eql(503); pm.expect(pm.response.json().message).to.eql(\"The Product Catalog Service is unavailable. Please try again later.\"); });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": {{p2}},\n      \"quantity\": 1\n    }\n  ],\n  \"shipping_address_id\": {{addr_a}}\n}"
+            }
+          }
+        },
+        {
+          "name": "31 The Order Service itself still answers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Orders unchanged\", function () { pm.expect(pm.response.json().total).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recovery (start the Product Catalog Service again, then run this folder)",
+      "item": [
+        {
+          "name": "32 No order was created and no stock was taken",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Still two orders\", function () { pm.expect(pm.response.json().total).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Inventory check: product p2 stock is 99",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Stock is 99\", function () { pm.expect(pm.response.json().stock_quantity).to.eql(99); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/inventory/{{p2}}",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "{{p2}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "33 Ordering works again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_a_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{order_url}}/api/orders/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": {{p2}},\n      \"quantity\": 1\n    }\n  ],\n  \"shipping_address_id\": {{addr_a}}\n}"
+            }
+          }
+        },
+        {
+          "name": "Inventory check: product p2 stock is 98",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Stock is 98\", function () { pm.expect(pm.response.json().stock_quantity).to.eql(98); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/inventory/{{p2}}",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "{{p2}}"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
