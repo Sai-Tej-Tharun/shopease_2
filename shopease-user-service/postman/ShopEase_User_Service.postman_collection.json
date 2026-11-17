@@ -1,0 +1,1532 @@
+{
+  "info": {
+    "name": "ShopEase User Service",
+    "description": "Run the whole collection top to bottom with the Collection Runner. The Setup folder registers and logs in two users in the Authentication Service (start it first on auth_url) and stores their JWTs; the other folders test the User Service on user_url. The last requests delete the test profiles so the collection can be run again.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Setup - Authentication Service (login belongs to the Auth Service)",
+      "item": [
+        {
+          "name": "Auth - register user A (201, or 409 if it already exists)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201/409\", function () { pm.expect(pm.response.code === 201 || pm.response.code === 409).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/auth/register",
+              "host": [
+                "{{auth_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Sai Tej\",\n  \"email\": \"postman.user.a@example.com\",\n  \"password\": \"{{password}}\",\n  \"confirm_password\": \"{{password}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Auth - login user A (gets the JWT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Token received\", function () { pm.expect(pm.response.json().access_token).to.be.a(\"string\"); });",
+                  "pm.collectionVariables.set(\"token_a\", pm.response.json().access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/auth/login",
+              "host": [
+                "{{auth_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"postman.user.a@example.com\",\n  \"password\": \"{{password}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Auth - register user B (201, or 409 if it already exists)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201/409\", function () { pm.expect(pm.response.code === 201 || pm.response.code === 409).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/auth/register",
+              "host": [
+                "{{auth_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Ravi Kumar\",\n  \"email\": \"postman.user.b@example.com\",\n  \"password\": \"{{password}}\",\n  \"confirm_password\": \"{{password}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Auth - login user B (gets the JWT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Token received\", function () { pm.expect(pm.response.json().access_token).to.be.a(\"string\"); });",
+                  "pm.collectionVariables.set(\"token_b\", pm.response.json().access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{auth_url}}/api/auth/login",
+              "host": [
+                "{{auth_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"postman.user.b@example.com\",\n  \"password\": \"{{password}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {
+          "name": "01 Profile without token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 401\", function () { pm.expect(pm.response.code === 401).to.eql(true); });",
+                  "pm.test(\"Message: Not authenticated: Bearer token is missing\", function () { pm.expect(pm.response.json().message).to.eql(\"Not authenticated: Bearer token is missing\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "02 Profile with invalid token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 401\", function () { pm.expect(pm.response.code === 401).to.eql(true); });",
+                  "pm.test(\"Message: Invalid token\", function () { pm.expect(pm.response.json().message).to.eql(\"Invalid token\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer abc.def.ghi"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "03 Create profile (valid token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.expect(pm.response.code === 201).to.eql(true); });",
+                  "pm.test(\"Owner is the token user\", function () { const j = pm.response.json(); pm.expect(j.full_name).to.eql(\"Sai Tej\"); pm.expect(j.is_active).to.eql(true); pm.expect(j.auth_user_id).to.be.a(\"number\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Sai Tej\",\n  \"phone_number\": \"9876543210\",\n  \"date_of_birth\": \"2000-05-17\",\n  \"gender\": \"Male\",\n  \"profile_image\": \"https://example.com/sai.png\"\n}"
+            }
+          }
+        },
+        {
+          "name": "04 Create duplicate profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", function () { pm.expect(pm.response.code === 409).to.eql(true); });",
+                  "pm.test(\"Message: A profile already exists for this user\", function () { pm.expect(pm.response.json().message).to.eql(\"A profile already exists for this user\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Sai Tej\",\n  \"phone_number\": \"9876543210\",\n  \"date_of_birth\": \"2000-05-17\",\n  \"gender\": \"Male\",\n  \"profile_image\": \"https://example.com/sai.png\"\n}"
+            }
+          }
+        },
+        {
+          "name": "05 Get my profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Profile returned\", function () { pm.expect(pm.response.json().phone_number).to.eql(\"9876543210\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "06 Update profile (PUT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Updated\", function () { pm.expect(pm.response.json().full_name).to.eql(\"Sai Tej Tharun\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Sai Tej Tharun\",\n  \"phone_number\": \"9000011111\",\n  \"date_of_birth\": \"2000-05-17\",\n  \"gender\": \"Male\",\n  \"profile_image\": \"https://example.com/sai.png\"\n}"
+            }
+          }
+        },
+        {
+          "name": "07 Partially update profile (PATCH)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Only phone changed\", function () { const j = pm.response.json(); pm.expect(j.phone_number).to.eql(\"9111122222\"); pm.expect(j.full_name).to.eql(\"Sai Tej Tharun\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"9111122222\"\n}"
+            }
+          }
+        },
+        {
+          "name": "08 Owner id in the body is rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", function () { pm.expect(pm.response.code === 422).to.eql(true); });",
+                  "pm.test(\"auth_user_id not allowed\", function () { pm.expect(pm.response.json().details[0].field).to.eql(\"auth_user_id\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_b}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Sai Tej\",\n  \"phone_number\": \"9876543210\",\n  \"date_of_birth\": \"2000-05-17\",\n  \"gender\": \"Male\",\n  \"profile_image\": \"https://example.com/sai.png\",\n  \"auth_user_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "09 Invalid phone number",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", function () { pm.expect(pm.response.code === 422).to.eql(true); });",
+                  "pm.test(\"Phone field reported\", function () { pm.expect(pm.response.json().details[0].field).to.eql(\"phone_number\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Sai Tej\",\n  \"phone_number\": \"123\",\n  \"date_of_birth\": \"2000-05-17\",\n  \"gender\": \"Male\",\n  \"profile_image\": \"https://example.com/sai.png\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Addresses",
+      "item": [
+        {
+          "name": "10 Add address 1 (Home, default)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.expect(pm.response.code === 201).to.eql(true); });",
+                  "pm.test(\"Is default\", function () { pm.expect(pm.response.json().is_default).to.eql(true); });",
+                  "pm.collectionVariables.set(\"addr1\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address_type\": \"Home\",\n  \"full_name\": \"Sai Tej\",\n  \"phone_number\": \"9876543210\",\n  \"address_line_1\": \"12-3 Main Road\",\n  \"address_line_2\": \"Near Park\",\n  \"city\": \"Hyderabad\",\n  \"state\": \"Telangana\",\n  \"country\": \"India\",\n  \"postal_code\": \"500001\",\n  \"is_default\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "11 Add address 2 (Office)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.expect(pm.response.code === 201).to.eql(true); });",
+                  "pm.test(\"Not default\", function () { pm.expect(pm.response.json().is_default).to.eql(false); });",
+                  "pm.collectionVariables.set(\"addr2\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address_type\": \"Office\",\n  \"full_name\": \"Sai Tej\",\n  \"phone_number\": \"9876543210\",\n  \"address_line_1\": \"5 Tech Park\",\n  \"address_line_2\": null,\n  \"city\": \"Hyderabad\",\n  \"state\": \"Telangana\",\n  \"country\": \"India\",\n  \"postal_code\": \"500081\",\n  \"is_default\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "12 Add address 3 (Other, as default)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.expect(pm.response.code === 201).to.eql(true); });",
+                  "pm.test(\"Is default\", function () { pm.expect(pm.response.json().is_default).to.eql(true); });",
+                  "pm.collectionVariables.set(\"addr3\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address_type\": \"Other\",\n  \"full_name\": \"Ravi Kumar\",\n  \"phone_number\": \"9876543210\",\n  \"address_line_1\": \"77 Lake View\",\n  \"address_line_2\": \"Near Park\",\n  \"city\": \"Chennai\",\n  \"state\": \"Tamil Nadu\",\n  \"country\": \"India\",\n  \"postal_code\": \"600001\",\n  \"is_default\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "13 List my addresses (only one default)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Three addresses\", function () { pm.expect(pm.response.json().length).to.eql(3); });",
+                  "pm.test(\"Exactly one default address (id addr3)\", function () { const list = pm.response.json(); const d = list.filter(a => a.is_default); pm.expect(d.length).to.eql(1); pm.expect(d[0].id).to.eql(Number(pm.collectionVariables.get(\"addr3\"))); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses"
+              ]
+            }
+          }
+        },
+        {
+          "name": "14 Get one address",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Right address\", function () { pm.expect(pm.response.json().address_type).to.eql(\"Office\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses/{{addr2}}",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses",
+                "{{addr2}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "15 Update address 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"City changed\", function () { pm.expect(pm.response.json().city).to.eql(\"Pune\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses/{{addr2}}",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses",
+                "{{addr2}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address_type\": \"Office\",\n  \"full_name\": \"Sai Tej\",\n  \"phone_number\": \"9876543210\",\n  \"address_line_1\": \"5 Tech Park\",\n  \"address_line_2\": null,\n  \"city\": \"Pune\",\n  \"state\": \"Maharashtra\",\n  \"country\": \"India\",\n  \"postal_code\": \"411001\",\n  \"is_default\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "16 Set address 1 as default",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Now default\", function () { pm.expect(pm.response.json().is_default).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses/{{addr1}}/default",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses",
+                "{{addr1}}",
+                "default"
+              ]
+            }
+          }
+        },
+        {
+          "name": "17 Verify only one default exists",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Exactly one default address (id addr1)\", function () { const list = pm.response.json(); const d = list.filter(a => a.is_default); pm.expect(d.length).to.eql(1); pm.expect(d[0].id).to.eql(Number(pm.collectionVariables.get(\"addr1\"))); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses"
+              ]
+            }
+          }
+        },
+        {
+          "name": "18 Delete address 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Message: Address deleted successfully\", function () { pm.expect(pm.response.json().message).to.eql(\"Address deleted successfully\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses/{{addr2}}",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses",
+                "{{addr2}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "19 Invalid address (numeric city)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 422\", function () { pm.expect(pm.response.code === 422).to.eql(true); });",
+                  "pm.test(\"City field reported\", function () { pm.expect(pm.response.json().details[0].field).to.eql(\"city\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address_type\": \"Home\",\n  \"full_name\": \"Sai Tej\",\n  \"phone_number\": \"9876543210\",\n  \"address_line_1\": \"12-3 Main Road\",\n  \"address_line_2\": \"Near Park\",\n  \"city\": \"1234\",\n  \"state\": \"Telangana\",\n  \"country\": \"India\",\n  \"postal_code\": \"500001\",\n  \"is_default\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "20 Address that does not exist",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404\", function () { pm.expect(pm.response.code === 404).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses/999999",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses",
+                "999999"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Access control (user B tries to use user A's data)",
+      "item": [
+        {
+          "name": "21 B reads own profile before creating one",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404\", function () { pm.expect(pm.response.code === 404).to.eql(true); });",
+                  "pm.test(\"A's data is not returned\", function () { pm.expect(pm.response.text()).to.not.include(\"Sai Tej\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_b}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "22 B creates own profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () { pm.expect(pm.response.code === 201).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_b}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Ravi Kumar\",\n  \"phone_number\": \"9123456780\"\n}"
+            }
+          }
+        },
+        {
+          "name": "23 B reads A's address",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", function () { pm.expect(pm.response.code === 403).to.eql(true); });",
+                  "pm.test(\"Message: You do not have permission to access this address\", function () { pm.expect(pm.response.json().message).to.eql(\"You do not have permission to access this address\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_b}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses/{{addr1}}",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses",
+                "{{addr1}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "24 B updates A's address",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", function () { pm.expect(pm.response.code === 403).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_b}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses/{{addr1}}",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses",
+                "{{addr1}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address_type\": \"Home\",\n  \"full_name\": \"Sai Tej\",\n  \"phone_number\": \"9876543210\",\n  \"address_line_1\": \"12-3 Main Road\",\n  \"address_line_2\": \"Near Park\",\n  \"city\": \"Hacked\",\n  \"state\": \"Telangana\",\n  \"country\": \"India\",\n  \"postal_code\": \"500001\",\n  \"is_default\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "25 B deletes A's address",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", function () { pm.expect(pm.response.code === 403).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_b}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses/{{addr1}}",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses",
+                "{{addr1}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "26 B sets A's address as default",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", function () { pm.expect(pm.response.code === 403).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_b}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses/{{addr1}}/default",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses",
+                "{{addr1}}",
+                "default"
+              ]
+            }
+          }
+        },
+        {
+          "name": "27 B lists addresses (sees none of A's)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Empty list\", function () { pm.expect(pm.response.json().length).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_b}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses"
+              ]
+            }
+          }
+        },
+        {
+          "name": "28 A's address is unchanged",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Still Hyderabad\", function () { pm.expect(pm.response.json().city).to.eql(\"Hyderabad\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses/{{addr1}}",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses",
+                "{{addr1}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Account management",
+      "item": [
+        {
+          "name": "29 Account overview",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Overview\", function () { const j = pm.response.json(); pm.expect(j.has_profile).to.eql(true); pm.expect(j.profile_status).to.eql(\"active\"); pm.expect(j.address_count).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/account",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "account"
+              ]
+            }
+          }
+        },
+        {
+          "name": "30 Deactivate profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Deactivated\", function () { pm.expect(pm.response.json().is_active).to.eql(false); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile/deactivate",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile",
+                "deactivate"
+              ]
+            }
+          }
+        },
+        {
+          "name": "31 Add address while deactivated",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 403\", function () { pm.expect(pm.response.code === 403).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/addresses",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "addresses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address_type\": \"Home\",\n  \"full_name\": \"Sai Tej\",\n  \"phone_number\": \"9876543210\",\n  \"address_line_1\": \"12-3 Main Road\",\n  \"address_line_2\": \"Near Park\",\n  \"city\": \"Hyderabad\",\n  \"state\": \"Telangana\",\n  \"country\": \"India\",\n  \"postal_code\": \"500001\",\n  \"is_default\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "32 Reactivate profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Active again\", function () { pm.expect(pm.response.json().is_active).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile/reactivate",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile",
+                "reactivate"
+              ]
+            }
+          }
+        },
+        {
+          "name": "33 Delete profile A (also deletes its addresses)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });",
+                  "pm.test(\"Message: Profile and addresses deleted successfully\", function () { pm.expect(pm.response.json().message).to.eql(\"Profile and addresses deleted successfully\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_a}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "34 Delete profile B (cleanup, so the collection can be re-run)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.expect(pm.response.code === 200).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_b}}"
+              }
+            ],
+            "url": {
+              "raw": "{{user_url}}/api/users/profile",
+              "host": [
+                "{{user_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "auth_url",
+      "value": "http://localhost:8001"
+    },
+    {
+      "key": "user_url",
+      "value": "http://localhost:8002"
+    },
+    {
+      "key": "password",
+      "value": "Secret@123"
+    },
+    {
+      "key": "token_a",
+      "value": ""
+    },
+    {
+      "key": "token_b",
+      "value": ""
+    },
+    {
+      "key": "addr1",
+      "value": ""
+    },
+    {
+      "key": "addr2",
+      "value": ""
+    },
+    {
+      "key": "addr3",
+      "value": ""
+    }
+  ]
+}

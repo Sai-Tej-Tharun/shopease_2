@@ -1,0 +1,49 @@
+# User Service + its own MySQL database (shopease_user_db).
+# All credentials and the JWT secret come from the .env file (copy .env.example to .env).
+
+services:
+  user-db:
+    image: mysql:8.0
+    container_name: shopease-user-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE in .env}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+    ports:
+      - "${MYSQL_HOST_PORT:-3308}:3306"      # optional: lets MySQL Workbench reach the container
+    volumes:
+      - user_db_data:/var/lib/mysql           # named volume: data survives container restarts
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  user-service:
+    build: .
+    container_name: shopease-user-service
+    restart: unless-stopped
+    depends_on:
+      user-db:
+        condition: service_healthy            # start only after MySQL answers the health check
+    environment:
+      MYSQL_HOST: user-db                     # the Compose service name, NOT localhost
+      MYSQL_PORT: "3306"                      # port inside the Docker network
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env (same value as the Authentication Service)}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      AUTH_VERIFY_REMOTE: ${AUTH_VERIFY_REMOTE:-false}
+      # the Authentication Service runs in its own Compose project and publishes port 8001 on the PC
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL_IN_DOCKER:-http://host.docker.internal:8001}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # makes host.docker.internal work on Linux too (Docker Desktop has it)
+    ports:
+      - "8002:8002"
+
+volumes:
+  user_db_data:
